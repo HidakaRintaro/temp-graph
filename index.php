@@ -1,67 +1,72 @@
 <?php
 
-require_once('./env.php');
+require_once('env.php');
+
+// --------------------------
+// 天気情報をDBから取得
+// --------------------------
 
 // タイムゾーン設定
 date_default_timezone_set('Asia/Tokyo');
 
 // データベースに接続
-$mysqli = new mysqli( DB_HOST, DB_USER, DB_PASS, DB_NAME);
+$db_link = mysqli_connect(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+
+// 文字コード
+mysqli_set_charset($db_link, 'utf8');
 
 // 接続エラーの確認
-if( mysqli_connect_errno($mysqli) ) {
-  $dbmsg = mysqli_connect_errno($mysqli) . ' : ' . mysqli_connect_error($mysqli);
-} else {
-  
-$city = '東京';
-if (isset($_POST['city'])) {
-  $city = $_POST['city'];
+if( mysqli_connect_errno($db_link) ) {
+  $dbmsg = mysqli_connect_errno($db_link) . ' : ' . mysqli_connect_error($db_link);
 }
+else {
+  $city = '東京';
+  if (isset($_POST['city'])) {
+    $city = $_POST['city'];
+  }
 
   // 全件数取得
-  $sql = "SELECT timedate, MIN(minw), MAX(maxw), city FROM weather WHERE city = '".$city."' GROUP BY timedate"; 
-  $res = $mysqli->query($sql);
+  $sql = "SELECT timedate, MAX(maxw), MIN(minw), city FROM weather WHERE city = '".$city."' GROUP BY timedate"; 
+  $res = mysqli_query($db_link, $sql);
     
   if( $res ) {
-        $total = $res->fetch_all();
-      }
-      $mysqli->close();
-      
-    }
+    $total = $res->fetch_all();
+  }
+  // DBとの接続解除
+  mysqli_close($db_link);
+  
+}
 
-//-----グラフデータ算出-----
-//日付データ
+
+// --------------------------
+// グラフデータ算出
+// --------------------------
+
 $date_list = '';
-foreach ($total as $value) {
-  $date = explode('-', $value[0]);
-  $date_list .= "'".$date[0].'/'.$date[1].'/'.$date[2]."'".',';
-}
-$date_list = rtrim($date_list, ',');
-
-//最高気温データ
 $max_list = '';
-foreach ($total as $value) {
-  $max_list .= $value[2].',';
-}
-$max_list = rtrim($max_list, ',');
-
-//最低気温データ
 $min_list = '';
 foreach ($total as $value) {
-  $min_list .= $value[1].',';
+  //日付データ
+  $date_list .= "'".str_replace('-', '/', $value[0])."',";
+  //最高気温データ
+  $max_list .= $value[1].',';
+  //最低気温データ
+  $min_list .= $value[2].',';
 }
+// 末尾のカンマ(,)の除去
+$date_list = rtrim($date_list, ',');
+$max_list = rtrim($max_list, ',');
 $min_list = rtrim($min_list, ',');
 
 ?>
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
   <meta charset="utf-8">
 　<title>グラフ</title> 
 </head>
 <body>
-  <h1>折れ線グラフ (<?php echo $city; ?>)</h1>
+<h1>折れ線グラフ (<?php echo $city; ?>)</h1>
   <canvas id="myLineChart"></canvas>
   <form action="" method="post">
     <button type="submit" value="東京" name="city">東京</button>
@@ -71,12 +76,11 @@ $min_list = rtrim($min_list, ',');
     <button type="submit" value="新潟" name="city">新潟</button>
     <button type="submit" value="熊谷" name="city">熊谷</button>
     <button type="submit" value="旭川" name="city">旭川</button>
-
   </form>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.bundle.js"></script>
   <script>
-  var ctx = document.getElementById("myLineChart");
-  var myLineChart = new Chart(ctx, {
+    var ctx = document.getElementById("myLineChart");
+    var myLineChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: [<?php echo $date_list; ?>],
@@ -114,5 +118,4 @@ $min_list = rtrim($min_list, ',');
   });
   </script>
 </body>
-
 </html>
